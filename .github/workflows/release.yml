@@ -98,8 +98,8 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/release/"*.tar.gz "$RUNNER_TEMP/release/SHA256SUMS" \
             --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$notes" "${args[@]}"
-      - name: Update stable image alias
-        if: needs.check.outputs.channel == 'stable'
+      # 按发布策略，预发布标签同样更新镜像 latest；与 GitHub Release 的 latest 属性无关。
+      - name: Update latest image alias
         env:
           IMAGE: ${{ needs.check.outputs.image }}
           DIGEST: ${{ steps.image.outputs.digest }}

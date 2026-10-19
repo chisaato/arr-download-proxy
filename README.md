@@ -101,9 +101,11 @@ sequenceDiagram
 - [Docker 构建与部署](docs/deployment.md)
 - [GitHub Actions、GHCR 与 Release 发布](docs/releasing.md)
 
+GHCR 镜像 `ghcr.io/chisaato/arr-download-proxy` 支持 Linux amd64/arm64：main 检查通过后更新 `:dev`；合法 `vSemVer` 标签发布对应版本与 `:latest`，**包括预发布版本**。GitHub Release 的预发布标记仍独立保留；需要固定版本时请使用具体版本标签。PR 仅检查，不发布。
+
 ### 1. 编译构建
 
-本项目基于标准 Go 模块（支持 Go 1.21+），无 CGO 依赖：
+本项目基于标准 Go 模块（Go 版本以 `go.mod` 为准，当前为 1.26.7），无 CGO 依赖：
 
 ```bash
 cd arr-download-proxy
