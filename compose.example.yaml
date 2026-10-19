@@ -1,0 +1,31 @@
+services:
+  arr-download-proxy:
+    # 本地构建无需设置；使用已发布镜像时替换为自己的仓库与版本。
+    image: ${ARR_DOWNLOAD_PROXY_IMAGE:-arr-download-proxy:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      # 默认只暴露给宿主机；远程 Sonarr 访问前按文档配置网络与访问控制。
+      - "127.0.0.1:9091:9091"
+    volumes:
+      - type: bind
+        source: ./config.yaml
+        target: /config/config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data
+        target: /app/data
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    stop_grace_period: 15s

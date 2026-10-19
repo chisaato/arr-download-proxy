@@ -1,0 +1,30 @@
+# 只允许编译需要的源码进入上下文，避免本地运行数据和凭据上传到构建器。
+**
+!go.mod
+!go.sum
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!Dockerfile
+!.dockerignore
+
+# 即使未来扩大允许范围，也不上传这些运行文件。
+**/testenv/**
+**/.scratch/**
+**/.git/**
+**/bin/**
+**/config.yaml
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+**/*.sqlite3-*
+**/*.log
+**/logs/**
+**/.env*
+**/*.pem
+**/*.key
+**/*credentials*
+**/*secrets*

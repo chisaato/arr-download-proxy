@@ -1,0 +1,53 @@
+# Arr-Download-Proxy 配置文件示例
+
+server:
+  # 代理服务监听地址
+  host: "0.0.0.0"
+  # 代理服务监听端口 (在 Sonarr 的 Download Client 中填入此端口)
+  port: 9091
+  # 可选的 RPC 鉴权
+  username: ""
+  password: ""
+
+database:
+  # 内部持久化 SQLite 路径，记录任务状态与原始种子（意外断电防丢）
+  file_path: "data/proxy.db"
+
+biglybt:
+  # BiglyBT 的 Transmission RPC 接口地址
+  rpc_url: "http://127.0.0.1:9092/transmission/rpc"
+  username: ""
+  password: ""
+
+sonarr:
+  # Sonarr Web 地址
+  base_url: "http://127.0.0.1:8989"
+  # Sonarr 的 API 密钥 (可在 Sonarr 设置 -> 常规 -> 安全 中获取)
+  api_key: "your-sonarr-api-key-here"
+  # 查询 Sonarr 接口的超时时间 (秒)
+  timeout_seconds: 10
+
+path_rules:
+  # 兜底物理下载目录 (当未匹配到磁盘规则时使用)
+  default_download_dir: "/mnt/disk1/downloads"
+
+  # 多盘映射规则：
+  # 核心目标：让“下载暂存目录 A”与“剧集最终目录 B”处于同一个物理磁盘，以保证 Sonarr 能够成功执行 Hardlink
+  # 命中后用 download_dir 替换 media_prefix，并保留后面的全部相对路径。
+  # 例：/mnt/disk1/media/tv/某剧/Season 01 → /mnt/disk1/downloads/tv/某剧/Season 01
+  # 只按完整路径段匹配，/media 不会命中 /media-other。
+  disk_mappings:
+    - media_prefix: "/mnt/disk1/media/tv"
+      download_dir: "/mnt/disk1/downloads/tv"
+    - media_prefix: "/mnt/disk2/media/tv"
+      download_dir: "/mnt/disk2/downloads/tv"
+
+  # Docker 路径伪装转译规则：
+  # 当 Sonarr 运行在 Docker 内部时，它识别的路径与宿主机不同。
+  # 中转代理在响应 Sonarr 的任务状态查询时，会将真实宿主机路径动态翻译回容器内路径
+  docker_mappings:
+    # 宿主机路径 -> Sonarr 容器映射路径
+    - host_path: "/mnt/disk1/downloads"
+      container_path: "/downloads_disk1"
+    - host_path: "/mnt/disk2/downloads"
+      container_path: "/downloads_disk2"

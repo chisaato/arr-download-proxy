@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+# 不并行发布，避免两个版本同时修改 latest。
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.version.outputs.channel }}
+      image: ${{ steps.version.outputs.image }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate tag
+        id: version
+        shell: bash
+        run: |
+          channel=$(bash scripts/release.sh --validate-version "$GITHUB_REF_NAME")
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          image_tag=${GITHUB_REF_NAME//+/_}
+          if (( ${#image_tag} > 128 )); then
+            echo '镜像标签不能超过 128 字符' >&2
+            exit 1
+          fi
+          printf 'channel=%s\nimage=%s\nimage_tag=%s\n' "$channel" "$image" "$image_tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - run: go vet ./...
+
+  publish:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build binary archives
+        run: bash scripts/release.sh "$GITHUB_REF_NAME" "$RUNNER_TEMP/release"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish versioned image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ needs.check.outputs.image }}:${{ needs.check.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_CHANNEL: ${{ needs.check.outputs.channel }}
+          IMAGE: ${{ needs.check.outputs.image }}
+          IMAGE_TAG: ${{ needs.check.outputs.image_tag }}
+        shell: bash
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          # 反引号用于 Markdown 行内代码，不执行命令替换。
+          # shellcheck disable=SC2016
+          printf 'Linux amd64 / arm64 二进制归档及 SHA256SUMS。\n\n容器镜像：`%s:%s`（linux/amd64、linux/arm64）。\n\n使用前请校验 SHA256SUMS；配置与 CLI 说明见仓库 docs/releasing.md。\n' "$IMAGE" "$IMAGE_TAG" > "$notes"
+          args=(--latest)
+          if [[ $RELEASE_CHANNEL == prerelease ]]; then
+            args=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/release/"*.tar.gz "$RUNNER_TEMP/release/SHA256SUMS" \
+            --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$notes" "${args[@]}"
+      - name: Update stable image alias
+        if: needs.check.outputs.channel == 'stable'
+        env:
+          IMAGE: ${{ needs.check.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
