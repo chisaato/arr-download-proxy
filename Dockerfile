@@ -21,7 +21,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 
 COPY --from=build /out/arr-download-proxy /usr/local/bin/arr-download-proxy
 WORKDIR /app
-USER 10001:10001
+USER 1000:1000
 EXPOSE 9091
 ENTRYPOINT ["/usr/local/bin/arr-download-proxy"]
 CMD ["--config", "/config/config.yaml"]
